@@ -3,6 +3,7 @@ package vegeta
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -20,6 +21,7 @@ type Attacker struct {
 	stopch    chan struct{}
 	workers   uint64
 	redirects int
+	skipBody  bool
 }
 
 const (
@@ -64,7 +66,7 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 			MaxIdleConnsPerHost:   DefaultConnections,
 		},
 	}
-
+	a.skipBody = false
 	for _, opt := range opts {
 		opt(a)
 	}
@@ -272,11 +274,18 @@ func (a *Attacker) hit(tr Targeter, tm time.Time) *Result {
 	}
 	defer r.Body.Close()
 
-	if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
-		return &res
+	if a.skipBody {
+		bytesIn, err := io.Copy(ioutil.Discard, r.Body)
+		if err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(bytesIn)
+	} else {
+		if res.Body, err = ioutil.ReadAll(r.Body); err != nil {
+			return &res
+		}
+		res.BytesIn = uint64(len(res.Body))
 	}
-	res.BytesIn = uint64(len(res.Body))
-
 	if req.ContentLength != -1 {
 		res.BytesOut = uint64(req.ContentLength)
 	}
