@@ -67,11 +67,19 @@ func NewAttacker(opts ...func(*Attacker)) *Attacker {
 		},
 	}
 	a.skipBody = false
+
 	for _, opt := range opts {
 		opt(a)
 	}
 
 	return a
+}
+
+// SkipBody returns a functional option which sets the skip body toggle.
+// When skip body is enabled, the body is not saved in result. This allows
+// for load testing endpoints returning large body.
+func SkipBody(b bool) func(*Attacker) {
+	return func(a *Attacker) { a.skipBody = b }
 }
 
 // Workers returns a functional option which sets the initial number of workers
